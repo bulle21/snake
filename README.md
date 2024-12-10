@@ -1,4 +1,4 @@
-# snake sous terminal
+# snake sous terminal en langage C
 en langage C sous osx ou linux debian, Ubuntu ou raspbian
 utilise ncurses
 
