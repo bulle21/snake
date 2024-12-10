@@ -1,6 +1,6 @@
 # snake sous terminal en langage C
 en langage C sous osx ou linux debian, Ubuntu ou raspbian
-utilise ncurses
+utilise ncurses (sudo apt-get install libncurses5-dev libncursesw5-dev --> linux et bew install ncurses sous osx)
 
 compilation :
 make 
