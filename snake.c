@@ -13,6 +13,8 @@
 // 		et le snake est censé demarrer avec la palette noir sur noir ...
 //
 
+#define NBC 9
+
 #define VERSION	"Version 1.82"
 #define AVEC_SON	1
 
@@ -27,6 +29,7 @@
 #define AMANGER	"cases à manger : "
 #define TITRE	"Snake "
 #define PASSE_MURAILLE	"triche"
+#define ENCRYPTION_KEY 42
 
 #define NB_MANGER_AU_DEPART	19
 #define DELAY_MIN	50
@@ -66,6 +69,7 @@ static void libererSnake(void);
 static void lectureScoreDansFichier(void);
 static void ecrireScoreDansFichier(int,int);
 static void finish(int);
+static void encrypt_decrypt(char *);
 
 // VARIABLES GLOBALES
 char 	**grille = NULL,
@@ -80,30 +84,50 @@ struct S_uneDirection direction = {0,1};
 			       
 			     
 //Les fonctions
-static void lectureScoreDansFichier() // lecture du score dans un fichier
+// Fonction pour crypter/décrypter une chaîne (utilise XOR)
+void encrypt_decrypt(char *str) 
 {
-FILE *file;
+int i;
 
-file = fopen(FICHIER_DES_SCORES, "r");
-if(file != NULL) {
-	fscanf(file,"Score:%d,NB Manger:%d;",&meilleurScore,&meilleurAmanger);
-    	fclose(file); 
-    	} 
+for(i = 0;str[i] != '\0';i ++) 
+    str[i] ^= ENCRYPTION_KEY;
 }
 
-
-// ecriture du score dans un fichier
-static void ecrireScoreDansFichier(int n,int score) 
+static void lectureScoreDansFichier()
 {
 FILE *file;
-
-file = fopen(FICHIER_DES_SCORES, "w");
+char buffer[256];
+    
+file = fopen(FICHIER_DES_SCORES,"r");
 if(file != NULL) {
-    fprintf(file, "Score:%d,NB Manger:%d\n",score,n); 
-    fclose(file); 
-    } 
+    if(fgets(buffer,sizeof(buffer),file) != NULL) {
+        // Décrypte le contenu
+        encrypt_decrypt(buffer);
+            
+        // Parse le contenu décrypté
+        sscanf(buffer,"Score:%d,NB Manger:%d;",&meilleurScore,&meilleurAmanger);
+        }
+    fclose(file);
+    }
 }
 
+static void ecrireScoreDansFichier(int n,int score)
+{
+FILE *file;
+char buffer[256];
+    
+// Formate d'abord la chaîne
+snprintf(buffer,sizeof(buffer),"Score:%d,NB Manger:%d\n",score,n);
+    
+// Crypte le contenu
+encrypt_decrypt(buffer);
+    
+file = fopen(FICHIER_DES_SCORES,"w");
+if(file != NULL) {
+    fputs(buffer,file);
+    fclose(file);
+    }
+}
 
 // Creation d'un snake de base
 static void creerSnake(void) 
@@ -151,8 +175,8 @@ snake.teteSnake = snake.teteSnake->suiv;
 // GESTION DES COLLISIONS avec la grille
 if(modePasseMuraille) { 
 	if(snake.teteSnake->ligne < 0) 
-		snake.teteSnake->ligne = nbLignes - 1 - 3; 
-	else if (snake.teteSnake->ligne > nbLignes - 1 - 3) 
+		snake.teteSnake->ligne = nbLignes - 4; 
+	else if (snake.teteSnake->ligne > nbLignes - 4) 
 		snake.teteSnake->ligne = 0; 
 	else if (snake.teteSnake->colonne < 0) 
 		snake.teteSnake->colonne = nbColonnes - 1; 
@@ -161,7 +185,7 @@ if(modePasseMuraille) {
 	}
 else 
 	if(snake.teteSnake->ligne < 0 
-		|| snake.teteSnake->ligne > nbLignes - 1 - 3
+		|| snake.teteSnake->ligne > nbLignes - 4
 		|| snake.teteSnake->colonne < 0 
 		|| snake.teteSnake->colonne > nbColonnes - 1
 		|| (grille[snake . teteSnake -> ligne][snake . teteSnake -> colonne] == CORP_SNAKE) 
@@ -169,10 +193,9 @@ else
 		*fail = VRAI;
 
 if(!*fail) {
-	//*aMange = (grille[snake->teteSnake->ligne][snake->teteSnake->colonne] == DU_MANGER) ? 1 : 0;
 	etat = grille[snake.teteSnake -> ligne][snake.teteSnake -> colonne];
 	if((etat >= DU_MANGER) && (etat < (DU_MANGER + 9)))	{
-		*aMange = 1;
+		*aMange = VRAI;
 		nbCellulesAjoutees = etat - DU_MANGER; 
 		score += etat - DU_MANGER + 1;
 		}
@@ -180,7 +203,6 @@ if(!*fail) {
 		*aMange = FAUX;
 
 	grille[snake.teteSnake->ligne][snake.teteSnake->colonne] = TETE_SNAKE;
-	// augmenter la taille ?  ici 
 	}
 }
 
@@ -226,8 +248,9 @@ for(i = 0; i < nbLignes - 3;i ++)
 			wprintw(win,"%c",g);
                 	wattroff(win, COLOR_PAIR(colorDuSnake));
 			}
-		else 
+		else {
 			wprintw(win,"%c",g);
+			}
 		}
 }
 
@@ -236,6 +259,8 @@ int touche;
 char *fail;
 char *aMange; 
 {
+int i;
+
 if(direction.ligne == 0) { // Pour ne pas 'aller en arrière'
 	if(touche == KEY_UP){ 
 		direction.ligne = -1;
@@ -268,7 +293,7 @@ if(!*aMange)
 else {
 	// OH
 	// Ajouter des cellules supplémentaires en fonction de la valeur de la nourriture
-	for(int i = 0; i < nbCellulesAjoutees; i++) {
+	for(i = 0; i < nbCellulesAjoutees; i++) {
 		struct S_uneCellule *nouvelleCellule = (struct S_uneCellule *) malloc(sizeof(struct S_uneCellule));
 
 		// Copier les coordonnées de la dernière queue
@@ -362,9 +387,7 @@ int i;
 for(i = 0;i < nbLignes - 3;i++) 
 	free(grille[i]);
 free(grille);
-
 libererSnake();
-
 endwin();
 exit(n);
 }
@@ -410,6 +433,7 @@ if(has_colors()) {
 
 	use_default_colors(); // utilise les couleurs de fond par defaut
 	
+	/*
 	// couleurs de la nourriture
 	init_pair(1, COLOR_RED, -1);  // Texte rouge sur le fond par défaut
 	init_pair(2, COLOR_WHITE, COLOR_RED); 
@@ -420,9 +444,18 @@ if(has_colors()) {
 	init_pair(7, COLOR_MAGENTA,-1);
 	init_pair(8, COLOR_BLUE,-1);
 	init_pair(9, COLOR_BLACK,-1);
+	*/
+	
+    	// Initialisation des paires de couleurs
+    	for (int i = 1; i <= NBC; i++) {
+        	init_pair(i, i - 1, -1);          // Texte coloré sur fond par défaut  de 1 à 9
+        	init_pair(NBC + i + 1, i - 1, i - 1); // Texte et fond de la même couleur de 11 à 19
+    		}
 
 	// couleurs du snake
 	colorDuSnake = 11;
+
+	/*
 	init_pair(11, COLOR_BLACK,COLOR_BLACK);
 	init_pair(12, COLOR_RED,COLOR_RED);
 	init_pair(13, COLOR_WHITE,COLOR_WHITE);
@@ -432,6 +465,7 @@ if(has_colors()) {
 	init_pair(17, COLOR_CYAN,COLOR_CYAN);
 	init_pair(18, COLOR_MAGENTA,COLOR_MAGENTA);
 	init_pair(19, COLOR_BLUE,COLOR_BLUE);
+	*/
 
 	// couleur des fenetres score et game
 	init_pair(10, COLOR_BLACK,-1);
@@ -459,7 +493,6 @@ if(has_colors()) {
 	wbkgd(score_win,COLOR_PAIR(10));
 	}
 
-//@mvwprintw(score_win,1, 2,"meilleur score:%d",meilleurScore);
 mvwprintw(score_win,1, 2,"Record : %d",meilleurScore);
 mvwprintw(score_win,1, nbColonnes / 4,"%s%s",TITRE,VERSION);
 mvwprintw(score_win,1, nbColonnes / 2,"%s%d",SCORE,score);
@@ -468,7 +501,7 @@ wrefresh(score_win);
 
 keypad(game_win, TRUE);
 
-// Initialiser la grille
+// allocation la grille
 grille = (char **) malloc((nbLignes - 3) * sizeof(char *));
 for(i = 0; i < nbLignes - 3; i++) 
      	grille[i] = (char *) malloc(nbColonnes * sizeof(char));
